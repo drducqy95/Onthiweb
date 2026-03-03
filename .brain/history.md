@@ -51,3 +51,19 @@
 - All routes inside MainLayout, so self-contained screens overlay with fixed positioning
 - ImageLightbox uses z-[100] to overlay everything
 - backgroundUpdateTrigger already works in main.tsx
+
+---
+## Session: 2026-03-03 10:42
+
+### 📌 Working On
+- Feature: Compact Layout + Image Lightbox + Background Image
+- Phase: DONE
+
+
+---
+## Session: 2026-03-03 11:21
+
+### 📌 Working On
+- Feature: Bug Fixes: Property Sync + Question Bank + Edit Screen + Transparency
+- Phase: DONE
+

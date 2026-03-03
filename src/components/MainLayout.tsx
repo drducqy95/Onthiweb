@@ -14,7 +14,7 @@ interface LayoutProps {
 
 export const MainLayout: React.FC<LayoutProps> = ({ children }) => {
     return (
-        <div className="h-screen flex flex-col bg-gray-50/80 dark:bg-zinc-950/80 text-gray-900 dark:text-gray-100">
+        <div className="h-screen flex flex-col bg-gray-50/60 dark:bg-zinc-950/60 text-gray-900 dark:text-gray-100">
             <main className="flex-1 overflow-y-auto max-w-md mx-auto w-full px-4 pt-2 pb-20">
                 {children}
             </main>

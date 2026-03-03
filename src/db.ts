@@ -115,6 +115,27 @@ export class AppDatabase extends Dexie {
     reminders!: Table<Reminder>;
     appAssets!: Table<AppAsset>;
 
+    static readonly DEFAULT_PROPERTIES: Omit<PropertyOption, 'id'>[] = [
+        // Kỳ thi
+        { name: 'Thi đầu vào', type: 'term' },
+        { name: 'Thi đầu ra', type: 'term' },
+        { name: 'Thi hết môn', type: 'term' },
+        { name: 'Khác', type: 'term' },
+        // Cấp độ
+        { name: 'Đại học', type: 'level' },
+        { name: 'Thạc sĩ', type: 'level' },
+        { name: 'Tiến sĩ', type: 'level' },
+        { name: 'Chuyên khoa 1', type: 'level' },
+        { name: 'Chuyên khoa 2', type: 'level' },
+        { name: 'Khác', type: 'level' },
+        // Loại môn
+        { name: 'Môn Cơ sở', type: 'type' },
+        { name: 'Môn Chuyên ngành', type: 'type' },
+        { name: 'Môn Ngoại ngữ', type: 'type' },
+        { name: 'Môn Chính trị - Quân sự', type: 'type' },
+        { name: 'Môn khác', type: 'type' },
+    ];
+
     constructor() {
         super('OnThiDatabase');
         this.version(4).stores({
@@ -127,6 +148,19 @@ export class AppDatabase extends Dexie {
             reminders: '++id, isActive',
             appAssets: 'id' // id is key (e.g. 'background')
         });
+
+        // Seed on first creation
+        this.on('populate', () => {
+            this.propertyOptions.bulkAdd(AppDatabase.DEFAULT_PROPERTIES);
+        });
+    }
+
+    /** Seed default property options if table is empty (for existing DBs) */
+    async seedDefaultProperties() {
+        const count = await this.propertyOptions.count();
+        if (count === 0) {
+            await this.propertyOptions.bulkAdd(AppDatabase.DEFAULT_PROPERTIES);
+        }
     }
 
     async getQuestionsBySubjectRecursive(subjectId: number): Promise<Question[]> {
@@ -145,3 +179,7 @@ export class AppDatabase extends Dexie {
 }
 
 export const db = new AppDatabase();
+
+// Auto-seed for existing databases that have no property options
+db.open().then(() => db.seedDefaultProperties());
+

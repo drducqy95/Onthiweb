@@ -19,10 +19,24 @@ export const PracticeSelectionScreen: React.FC = () => {
 
     const allSubjects = useLiveQuery(() => db.subjects.toArray()) || [];
 
-    // Derive Unique Options for Dropdowns
-    const uniqueExamTerms = useMemo(() => Array.from(new Set(allSubjects.map(s => s.examTerm).filter(Boolean))), [allSubjects]);
-    const uniqueLevels = useMemo(() => Array.from(new Set(allSubjects.map(s => s.level).filter(Boolean))), [allSubjects]);
-    const uniqueTypes = useMemo(() => Array.from(new Set(allSubjects.map(s => s.type).filter(Boolean))), [allSubjects]);
+    // Live property options from DB (real-time sync with PropertySettingsScreen)
+    const propExamTerms = useLiveQuery(() => db.propertyOptions.where('type').equals('term').toArray()) || [];
+    const propLevels = useLiveQuery(() => db.propertyOptions.where('type').equals('level').toArray()) || [];
+    const propTypes = useLiveQuery(() => db.propertyOptions.where('type').equals('type').toArray()) || [];
+
+    // Merge: property DB options + unique values from existing subjects (dedup)
+    const uniqueExamTerms = useMemo(() => Array.from(new Set([
+        ...propExamTerms.map(p => p.name),
+        ...allSubjects.map(s => s.examTerm).filter(Boolean)
+    ])), [allSubjects, propExamTerms]);
+    const uniqueLevels = useMemo(() => Array.from(new Set([
+        ...propLevels.map(p => p.name),
+        ...allSubjects.map(s => s.level).filter(Boolean)
+    ])), [allSubjects, propLevels]);
+    const uniqueTypes = useMemo(() => Array.from(new Set([
+        ...propTypes.map(p => p.name),
+        ...allSubjects.map(s => s.type).filter(Boolean)
+    ])), [allSubjects, propTypes]);
 
     // Filter Logic
     const filteredSubjects = useMemo(() => {

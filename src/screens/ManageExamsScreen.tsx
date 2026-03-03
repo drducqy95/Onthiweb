@@ -5,10 +5,17 @@ import { db } from '../db';
 import type { ExamConfig } from '../db';
 import { ChevronLeft, Plus, Trash2, Save, X } from 'lucide-react';
 
+// Property types for dropdowns
+const PROP_TYPES = { term: 'term', level: 'level' } as const;
+
 export const ManageExamsScreen: React.FC = () => {
     const navigate = useNavigate();
     const configs = useLiveQuery(() => db.examConfigs.toArray()) || [];
     const subjects = useLiveQuery(() => db.subjects.toArray()) || [];
+
+    // Live property options from DB
+    const examTermOptions = useLiveQuery(() => db.propertyOptions.where('type').equals(PROP_TYPES.term).toArray()) || [];
+    const levelOptions = useLiveQuery(() => db.propertyOptions.where('type').equals(PROP_TYPES.level).toArray()) || [];
 
     // UI State
     const [isEditing, setIsEditing] = useState(false);
@@ -16,8 +23,8 @@ export const ManageExamsScreen: React.FC = () => {
     // Form State
     const [form, setForm] = useState<ExamConfig>({
         name: '',
-        examTerm: 'Thi hết môn',
-        level: 'Đại học',
+        examTerm: '',
+        level: '',
         subjects: []
     });
 
@@ -44,8 +51,8 @@ export const ManageExamsScreen: React.FC = () => {
     const resetForm = () => {
         setForm({
             name: '',
-            examTerm: 'Thi hết môn',
-            level: 'Đại học',
+            examTerm: '',
+            level: '',
             subjects: []
         });
     };
@@ -84,7 +91,7 @@ export const ManageExamsScreen: React.FC = () => {
     };
 
     return (
-        <div className="flex flex-col h-full bg-gray-50 dark:bg-zinc-950">
+        <div className="flex flex-col h-full bg-gray-50/70 dark:bg-zinc-950/70">
             <div className="p-4 bg-white dark:bg-zinc-900 border-b border-gray-100 dark:border-zinc-800 flex items-center gap-3 sticky top-0 z-10">
                 <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-xl">
                     <ChevronLeft size={24} />
@@ -115,9 +122,8 @@ export const ManageExamsScreen: React.FC = () => {
                                         onChange={e => setForm({ ...form, examTerm: e.target.value })}
                                         className="w-full mt-1 p-3 bg-gray-50 dark:bg-zinc-800 rounded-xl text-sm font-bold outline-none"
                                     >
-                                        <option>Thi hết môn</option>
-                                        <option>Thi đầu vào</option>
-                                        <option>Thi tốt nghiệp</option>
+                                        <option value="">-- Chọn loại thi --</option>
+                                        {examTermOptions.map(opt => <option key={opt.id} value={opt.name}>{opt.name}</option>)}
                                     </select>
                                 </div>
                                 <div>
@@ -127,9 +133,8 @@ export const ManageExamsScreen: React.FC = () => {
                                         onChange={e => setForm({ ...form, level: e.target.value })}
                                         className="w-full mt-1 p-3 bg-gray-50 dark:bg-zinc-800 rounded-xl text-sm font-bold outline-none"
                                     >
-                                        <option>Đại học</option>
-                                        <option>Sau đại học</option>
-                                        <option>Chuyên khoa 1</option>
+                                        <option value="">-- Chọn cấp độ --</option>
+                                        {levelOptions.map(opt => <option key={opt.id} value={opt.name}>{opt.name}</option>)}
                                     </select>
                                 </div>
                             </div>

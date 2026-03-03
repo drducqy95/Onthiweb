@@ -1,27 +1,29 @@
 {
   "session_info": {
-    "started_at": "2026-03-03T09:30:00+07:00",
-    "last_active": "2026-03-03T10:19:08+07:00",
-    "saved_at": "2026-03-03T10:19:08+07:00"
+    "started_at": "2026-03-03T10:52:00+07:00",
+    "last_active": "2026-03-03T11:21:00+07:00"
   },
   "working_on": {
-    "feature": "Compact Layout + Image Lightbox + Background Image",
+    "feature": "Property Sync + Filter System + Edit Subject + Background Transparency + Default Seed Data",
     "current_phase": "DONE"
   },
   "pending_tasks": [],
   "recent_changes": [
-    "Compacted QuestionView.tsx (spacing, padding, badges, fonts ~40% less height)",
-    "Compacted QuestionDetailScreen, PracticeScreen, ExamScreen, ReviewExamScreen (headers, footers, content areas)",
-    "Fixed self-contained screens: h-screen → fixed inset-0 z-50 to overlay MainLayout",
-    "Removed redundant padding (pb-20/mb-20) from 11 screens",
-    "MainLayout: min-h-screen → h-screen flex-col, pt-6 → pt-2",
-    "Created ImageLightbox.tsx component (zoom +/-, drag, double-click)",
-    "Integrated ImageLightbox into QuestionView for 3 image types",
-    "Made all screen backgrounds semi-transparent for background image visibility"
+    "db.ts: Added 15 default propertyOptions (4 term, 6 level, 5 type) with auto-seed on app start",
+    "ManageExamsScreen: replaced hardcoded dropdown options with useLiveQuery on propertyOptions",
+    "PracticeSelectionScreen: merged propertyOptions DB with subject-derived values for filter dropdowns",
+    "ExamSelectionScreen: added full filter system to Tự chọn tab (search + examTerm/level/type dropdowns + root toggle)",
+    "QuestionBankScreen: rebuilt with full filter system (search + dropdowns + tree/flat list switching)",
+    "QuestionDetailScreen: switched to getQuestionsBySubjectRecursive for parent subjects",
+    "SubjectTree: added edit subject dialog + export ZIP backup in context menu and dialog",
+    "Reduced background opacity across 7 files (/90→/70, /80→/60, opaque→/70)"
   ],
   "context_notes": [
-    "All routes are inside <MainLayout>, so self-contained screens use fixed inset-0 z-50",
-    "backgroundUpdateTrigger already works in main.tsx",
-    "ImageLightbox uses z-[100] to overlay everything including fixed screens at z-50"
+    "PropertyOption types: 'term' (kỳ thi), 'level' (cấp độ), 'type' (loại môn)",
+    "db.seedDefaultProperties() runs on app start, only inserts if table empty",
+    "on('populate') seeds on fresh DB creation",
+    "getQuestionsBySubjectRecursive uses recursive findChildren to collect all descendant IDs",
+    "SubjectTree edit dialog uses useLiveQuery for real-time property options in dropdowns",
+    "ZIP export in SubjectTree includes metadata + recursive questions + all images"
   ]
 }

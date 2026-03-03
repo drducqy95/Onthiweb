@@ -280,7 +280,7 @@ export const ExamScreen: React.FC = () => {
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex flex-col bg-gray-50/90 dark:bg-zinc-950/90">
+        <div className="fixed inset-0 z-50 flex flex-col bg-gray-50/70 dark:bg-zinc-950/70">
             {/* Header */}
             <div className="bg-white dark:bg-zinc-900 border-b border-gray-100 dark:border-zinc-800 p-3 flex items-center justify-between shadow-sm z-20">
                 <button onClick={() => setShowExitConfirm(true)} className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-xl">

@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import type { Subject } from '../db';
-import { Folder, ChevronRight, MoreVertical } from 'lucide-react';
+import { Folder, ChevronRight, MoreVertical, X, Download } from 'lucide-react';
+import JSZip from 'jszip';
 
 interface SubjectTreeProps {
     subjects: Subject[];
@@ -57,12 +59,110 @@ const SubjectNode: React.FC<SubjectNodeProps> = ({ subject, allSubjects, expande
     const hasChildren = children.length > 0;
     const navigate = useNavigate();
     const [showMenu, setShowMenu] = useState(false);
+    const [showEditDialog, setShowEditDialog] = useState(false);
+    const [editName, setEditName] = useState('');
+    const [editLevel, setEditLevel] = useState('');
+    const [editType, setEditType] = useState('');
+    const [editExamTerm, setEditExamTerm] = useState('');
+    const [isExporting, setIsExporting] = useState(false);
+
+    // Live property options for edit dialog dropdowns
+    const levelOptions = useLiveQuery(() => db.propertyOptions.where('type').equals('level').toArray()) || [];
+    const typeOptions = useLiveQuery(() => db.propertyOptions.where('type').equals('type').toArray()) || [];
+    const examTermOptions = useLiveQuery(() => db.propertyOptions.where('type').equals('term').toArray()) || [];
 
     const handleNodeClick = () => {
         if (hasChildren) {
             onToggle(subject.id!);
         } else {
             onSelect(subject);
+        }
+    };
+
+    const openEditDialog = () => {
+        setEditName(subject.name);
+        setEditLevel(subject.level);
+        setEditType(subject.type);
+        setEditExamTerm(subject.examTerm);
+        setShowEditDialog(true);
+        setShowMenu(false);
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editName.trim()) return;
+        await db.subjects.update(subject.id!, {
+            name: editName.trim(),
+            level: editLevel,
+            type: editType,
+            examTerm: editExamTerm
+        });
+        setShowEditDialog(false);
+    };
+
+    const handleExportZip = async () => {
+        setIsExporting(true);
+        try {
+            const zip = new JSZip();
+            // Collect all descendant subjects
+            const allSubs = await db.subjects.toArray();
+            const findDescendants = (pid: number): Subject[] => {
+                const kids = allSubs.filter(s => s.parentId === pid);
+                return [subject, ...kids.flatMap(k => [k, ...findDescendants(k.id!)])];
+            };
+            const relatedSubjects = Array.from(new Map(
+                findDescendants(subject.id!).map(s => [s.id, s])
+            ).values());
+
+            const metadata = {
+                version: "1.0",
+                subjects: relatedSubjects.map(s => ({
+                    id: s.id, name: s.name, parentId: s.parentId,
+                    level: s.level, type: s.type, examTerm: s.examTerm
+                }))
+            };
+            zip.file("metadata.json", JSON.stringify(metadata, null, 2));
+
+            // Get all questions recursively
+            const questions = await db.getQuestionsBySubjectRecursive(subject.id!);
+            const imgFolder = zip.folder("images");
+            const processed = await Promise.all(questions.map(async (q) => {
+                const qClone = { ...q };
+                if (q.image && q.image.startsWith('data:image')) {
+                    const fn = `img_q_${q.id}.png`;
+                    imgFolder?.file(fn, q.image.split(',')[1], { base64: true });
+                    qClone.image = `images/${fn}`;
+                }
+                if (q.optionImages?.some(img => img)) {
+                    qClone.optionImages = await Promise.all(q.optionImages.map(async (img, idx) => {
+                        if (img && img.startsWith('data:image')) {
+                            const fn = `img_q_${q.id}_opt_${idx}.png`;
+                            imgFolder?.file(fn, img.split(',')[1], { base64: true });
+                            return `images/${fn}`;
+                        }
+                        return img;
+                    }));
+                }
+                if (q.explanationImage && q.explanationImage.startsWith('data:image')) {
+                    const fn = `img_q_${q.id}_exp.png`;
+                    imgFolder?.file(fn, q.explanationImage.split(',')[1], { base64: true });
+                    qClone.explanationImage = `images/${fn}`;
+                }
+                return qClone;
+            }));
+
+            zip.file("questions.json", JSON.stringify(processed, null, 2));
+            const blob = await zip.generateAsync({ type: "blob" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${subject.name}_backup.zip`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error(e);
+            alert('Lỗi xuất dữ liệu');
+        } finally {
+            setIsExporting(false);
         }
     };
 
@@ -91,8 +191,6 @@ const SubjectNode: React.FC<SubjectNodeProps> = ({ subject, allSubjects, expande
                         <ChevronRight size={18} className={`text-gray-300 transition-transform duration-300 ${isExpanded ? 'rotate-90' : ''}`} />
                     )}
 
-                    {/* Menu only for Leaf nodes if enabling menu, OR for all nodes if we want to manage folders */}
-                    {/* For now enabling menu only for QuestionBank management purpose */}
                     {enableMenu && (
                         <div className="relative">
                             <button
@@ -104,7 +202,7 @@ const SubjectNode: React.FC<SubjectNodeProps> = ({ subject, allSubjects, expande
                             {showMenu && (
                                 <>
                                     <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-                                    <div className="absolute right-0 top-full mt-2 w-40 bg-white dark:bg-zinc-900 rounded-xl shadow-xl border border-gray-100 dark:border-zinc-800 z-20 overflow-hidden animate-in fade-in zoom-in-95">
+                                    <div className="absolute right-0 top-full mt-2 w-44 bg-white dark:bg-zinc-900 rounded-xl shadow-xl border border-gray-100 dark:border-zinc-800 z-20 overflow-hidden animate-in fade-in zoom-in-95">
                                         <button
                                             onClick={() => {
                                                 setShowMenu(false);
@@ -112,7 +210,19 @@ const SubjectNode: React.FC<SubjectNodeProps> = ({ subject, allSubjects, expande
                                             }}
                                             className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-zinc-800 font-medium"
                                         >
-                                            Xem chi tiết
+                                            📖 Xem chi tiết
+                                        </button>
+                                        <button
+                                            onClick={openEditDialog}
+                                            className="w-full text-left px-4 py-3 text-sm hover:bg-blue-50 dark:hover:bg-blue-900/10 text-blue-600 font-medium"
+                                        >
+                                            ✏️ Chỉnh sửa
+                                        </button>
+                                        <button
+                                            onClick={() => { setShowMenu(false); handleExportZip(); }}
+                                            className="w-full text-left px-4 py-3 text-sm hover:bg-green-50 dark:hover:bg-green-900/10 text-green-600 font-medium"
+                                        >
+                                            📦 Xuất bản sao lưu (ZIP)
                                         </button>
                                         <button
                                             onClick={() => {
@@ -123,7 +233,7 @@ const SubjectNode: React.FC<SubjectNodeProps> = ({ subject, allSubjects, expande
                                             }}
                                             className="w-full text-left px-4 py-3 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 font-medium"
                                         >
-                                            Xóa bộ đề
+                                            🗑️ Xóa bộ đề
                                         </button>
                                     </div>
                                 </>
@@ -132,6 +242,90 @@ const SubjectNode: React.FC<SubjectNodeProps> = ({ subject, allSubjects, expande
                     )}
                 </div>
             </div>
+
+            {/* Edit Subject Dialog */}
+            {showEditDialog && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in" onClick={() => setShowEditDialog(false)}>
+                    <div className="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-5">
+                            <h3 className="text-lg font-bold">Chỉnh sửa bộ đề</h3>
+                            <button onClick={() => setShowEditDialog(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-full">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-xs font-bold text-gray-400 uppercase">Tên bộ đề</label>
+                                <input
+                                    type="text"
+                                    autoFocus
+                                    value={editName}
+                                    onChange={e => setEditName(e.target.value)}
+                                    className="w-full mt-1 p-3 bg-gray-50 dark:bg-zinc-800 rounded-xl border-none outline-none font-bold focus:ring-2 ring-primary/20"
+                                    onKeyDown={e => e.key === 'Enter' && handleSaveEdit()}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-bold text-gray-400 uppercase">Kỳ thi</label>
+                                <select
+                                    value={editExamTerm}
+                                    onChange={e => setEditExamTerm(e.target.value)}
+                                    className="w-full mt-1 p-3 bg-gray-50 dark:bg-zinc-800 rounded-xl text-sm font-bold outline-none"
+                                >
+                                    <option value="">-- Chọn --</option>
+                                    {examTermOptions.map(opt => <option key={opt.id} value={opt.name}>{opt.name}</option>)}
+                                </select>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs font-bold text-gray-400 uppercase">Cấp độ</label>
+                                    <select
+                                        value={editLevel}
+                                        onChange={e => setEditLevel(e.target.value)}
+                                        className="w-full mt-1 p-3 bg-gray-50 dark:bg-zinc-800 rounded-xl text-sm font-bold outline-none"
+                                    >
+                                        <option value="">-- Chọn --</option>
+                                        {levelOptions.map(opt => <option key={opt.id} value={opt.name}>{opt.name}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-gray-400 uppercase">Loại môn</label>
+                                    <select
+                                        value={editType}
+                                        onChange={e => setEditType(e.target.value)}
+                                        className="w-full mt-1 p-3 bg-gray-50 dark:bg-zinc-800 rounded-xl text-sm font-bold outline-none"
+                                    >
+                                        <option value="">-- Chọn --</option>
+                                        {typeOptions.map(opt => <option key={opt.id} value={opt.name}>{opt.name}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                onClick={handleExportZip}
+                                disabled={isExporting}
+                                className="flex items-center justify-center gap-2 px-4 py-4 bg-green-50 dark:bg-green-900/20 text-green-600 rounded-xl font-bold active:scale-95 transition-all disabled:opacity-50"
+                                title="Xuất bản sao lưu ZIP"
+                            >
+                                <Download size={18} />
+                                {isExporting ? '...' : 'ZIP'}
+                            </button>
+                            <button
+                                onClick={handleSaveEdit}
+                                disabled={!editName.trim()}
+                                className="flex-1 py-4 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/30 active:scale-95 transition-all disabled:opacity-50 disabled:shadow-none"
+                            >
+                                Lưu thay đổi
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {isExpanded && hasChildren && (
                 <div className="animate-in slide-in-from-top-2 duration-300">

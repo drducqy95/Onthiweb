@@ -18,7 +18,7 @@ export const QuestionDetailScreen: React.FC = () => {
 
     const questions = useLiveQuery(() => {
         if (!subjectId) return [];
-        return db.questions.where('subjectId').equals(Number(subjectId)).toArray();
+        return db.getQuestionsBySubjectRecursive(Number(subjectId));
     }, [subjectId]) || [];
 
     const filteredQuestions = useMemo(() => {
@@ -129,7 +129,7 @@ export const QuestionDetailScreen: React.FC = () => {
     if (!subject) return <div className="p-8 text-center">Đang tải...</div>;
 
     return (
-        <div className="fixed inset-0 z-50 flex flex-col bg-gray-50/90 dark:bg-zinc-950/90">
+        <div className="fixed inset-0 z-50 flex flex-col bg-gray-50/70 dark:bg-zinc-950/70">
             {/* Header */}
             <div className="bg-white dark:bg-zinc-900 border-b border-gray-100 dark:border-zinc-800 px-3 py-2 flex items-center justify-between z-10">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
