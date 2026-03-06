@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../db';
 import { QuestionView } from '../components/QuestionView';
-import { ChevronLeft, ChevronRight, Timer, AlertTriangle, List, CheckCircle } from 'lucide-react';
+import { QuestionNav } from '../components/QuestionNav';
+import type { QuestionStatus } from '../components/QuestionNav';
+import { useSwipeNavigation } from '../hooks/useSwipeNavigation';
+import { ChevronLeft, Timer, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useExamStore, useSettingsStore } from '../store';
 import { clsx } from 'clsx';
 
@@ -23,7 +26,6 @@ export const ExamScreen: React.FC = () => {
 
     const [currentIndex, setCurrentIndex] = useState(0);
     const [showExitConfirm, setShowExitConfirm] = useState(false);
-    const [showGrid, setShowGrid] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [showNextSubjectModal, setShowNextSubjectModal] = useState(false);
     const [lastSubjectResult, setLastSubjectResult] = useState<any>(null);
@@ -85,8 +87,6 @@ export const ExamScreen: React.FC = () => {
     const activeConfig = currentSession?.configs[activeSubjectIndex];
 
     // Slice questions for active subject
-    // We assume questions are pushed sequentially: [Subject1Questions, Subject2Questions...]
-    // We need to calculate start index.
     const getActiveQuestions = () => {
         if (!currentSession || !activeConfig) return [];
         let start = 0;
@@ -112,10 +112,8 @@ export const ExamScreen: React.FC = () => {
         if (currentQuestion.questionType === 'MULTIPLE_CHOICE') {
             const current = userAnswers[currentQuestion.id!] || '';
             if (current.includes(letter)) {
-                // Deselect
                 updateAnswer(currentQuestion.id!, current.replace(letter, ''));
             } else {
-                // Add (keep sorted)
                 const newVal = (current + letter).split('').sort().join('');
                 updateAnswer(currentQuestion.id!, newVal);
             }
@@ -140,7 +138,6 @@ export const ExamScreen: React.FC = () => {
     const handleSubmit = async (auto = false) => {
         if (!auto && !window.confirm('Bạn có chắc chắn muốn nộp bài môn này?')) return;
 
-        // Calculate score for THIS subject
         let correctCount = 0;
         let totalItems = 0;
 
@@ -156,23 +153,18 @@ export const ExamScreen: React.FC = () => {
                 totalItems++;
                 const userA = userAnswers[q.id!] || '';
                 if (q.questionType === 'MULTIPLE_CHOICE') {
-                    // Multi-select: exact match — selected must equal correctAnswers exactly
                     const selectedLetters = userA.split('').sort();
                     const correctLetters = [...q.correctAnswers].sort();
                     const isExact = selectedLetters.length === correctLetters.length &&
                         selectedLetters.every((l, i) => l === correctLetters[i]);
                     if (isExact) correctCount++;
                 } else {
-                    // TRUE_FALSE: single answer
                     if (q.correctAnswers.includes(userA)) correctCount++;
                 }
             }
         });
 
         const score = totalItems > 0 ? (correctCount / totalItems) * 10 : 0;
-        // Pass/Fail for Subject (optional check, but global pass depends on >=70% CORRECT COUNT usually, or Score?)
-        // Requirement: "ít nhất 1 môn có số lượng câu đúng dưới 70% là rớt".
-        // So passed = (correctCount / totalItems) >= 0.7
         const passed = totalItems > 0 ? (correctCount / totalItems) >= 0.7 : false;
 
         const result = {
@@ -186,14 +178,11 @@ export const ExamScreen: React.FC = () => {
 
         completeSubject(result);
 
-        // Check if next?
         if (activeSubjectIndex < currentSession.configs.length - 1) {
-            // Next subject exists
             setLastSubjectResult(result);
             setShowNextSubjectModal(true);
-            setCurrentIndex(0); // Reset UI index
+            setCurrentIndex(0);
         } else {
-            // Finished All
             finishAll([...(currentSession.accumulatedResults || []), result]);
         }
     };
@@ -201,20 +190,13 @@ export const ExamScreen: React.FC = () => {
     const finishAll = async (allResults: any[]) => {
         finishSession();
 
-        // Calculate Global Pass/Fail
-        // "Không Đạt nếu có ít nhất 1 môn < 70%" -> All must be passed
         const globalPassed = allResults.every(r => r.passed);
-
-        // Avg Score?
         const totalScore = allResults.reduce((acc, r) => acc + r.score, 0);
         const avgScore = totalScore / allResults.length;
 
-        // Use FIRST subject info (or composite) for legacy fields?
-        // We'll mark isMultiSubject=true
-
         const resultId = await db.examResults.add({
             subjectId: currentSession.configs[0].subjectId,
-            subjectName: currentSession.name, // "Kỳ thi tốt nghiệp..."
+            subjectName: currentSession.name,
             score: avgScore,
             correctCount: allResults.reduce((acc, r) => acc + r.correctCount, 0),
             totalQuestions: allResults.reduce((acc, r) => acc + r.totalQuestions, 0),
@@ -235,7 +217,6 @@ export const ExamScreen: React.FC = () => {
 
     const startNextSubject = () => {
         setShowNextSubjectModal(false);
-        // currentIndex is already 0, inputs active
     };
 
     const formatTime = (seconds: number) => {
@@ -243,6 +224,16 @@ export const ExamScreen: React.FC = () => {
         const s = seconds % 60;
         return `${m}:${s.toString().padStart(2, '0')}`;
     };
+
+    const handleNavigate = useCallback((idx: number) => setCurrentIndex(idx), []);
+    const swipeRef = useSwipeNavigation({
+        onSwipeLeft: () => setCurrentIndex(i => Math.min(activeQuestions.length - 1, i + 1)),
+        onSwipeRight: () => setCurrentIndex(i => Math.max(0, i - 1)),
+    });
+
+    const getExamStatus = useCallback((q: any): QuestionStatus => {
+        return userAnswers[q.id!] ? 'answered' : 'unanswered';
+    }, [userAnswers]);
 
     // Modal for Next Subject
     if (showNextSubjectModal) {
@@ -297,49 +288,16 @@ export const ExamScreen: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="flex gap-2">
-                    <button
-                        onClick={() => setShowGrid(!showGrid)}
-                        className={`p-2 rounded-xl transition-colors ${showGrid ? 'bg-primary text-white' : 'hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-400'}`}
-                    >
-                        <List size={24} />
-                    </button>
-                    <button
-                        onClick={() => handleSubmit()}
-                        className="px-4 py-2 bg-primary text-white rounded-xl font-bold text-xs shadow-lg shadow-primary/20 active:scale-95 transition-all"
-                    >
-                        NỘP BÀI
-                    </button>
-                </div>
+                <button
+                    onClick={() => handleSubmit()}
+                    className="px-4 py-2 bg-primary text-white rounded-xl font-bold text-xs shadow-lg shadow-primary/20 active:scale-95 transition-all"
+                >
+                    NỘP BÀI
+                </button>
             </div>
 
-            {/* Grid Overlay */}
-            {showGrid && (
-                <div className="absolute top-[72px] inset-x-0 bottom-0 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-sm z-10 p-4 animate-in fade-in slide-in-from-top-4 overflow-y-auto">
-                    <div className="grid grid-cols-5 gap-3">
-                        {activeQuestions.map((q, idx) => {
-                            const isAnswered = !!userAnswers[q.id!];
-                            return (
-                                <button
-                                    key={q.id}
-                                    onClick={() => { setCurrentIndex(idx); setShowGrid(false); }}
-                                    className={clsx(
-                                        "p-3 rounded-xl border-2 font-bold text-sm transition-all",
-                                        idx === currentIndex ? "border-primary text-primary bg-primary/10" :
-                                            isAnswered ? "border-blue-200 bg-blue-50 text-blue-600 dark:border-blue-900 dark:bg-blue-900/20" :
-                                                "border-gray-100 bg-white text-gray-400 dark:border-zinc-800 dark:bg-zinc-900"
-                                    )}
-                                >
-                                    {idx + 1}
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
-
             {/* Content */}
-            <div className="flex-1 overflow-y-auto px-3 py-2">
+            <div ref={swipeRef} className="flex-1 overflow-y-auto px-3 py-2">
                 <div className="max-w-2xl mx-auto" key={currentQuestion.id}>
                     <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
                         <span>Câu {currentIndex + 1} / {activeConfig.count}</span>
@@ -359,22 +317,12 @@ export const ExamScreen: React.FC = () => {
             </div>
 
             {/* Footer */}
-            <div className="bg-white dark:bg-zinc-900 border-t border-gray-100 dark:border-zinc-800 px-3 py-2 flex gap-3 z-10">
-                <button
-                    onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
-                    disabled={currentIndex === 0}
-                    className="flex-1 py-2.5 bg-gray-50 dark:bg-zinc-800 rounded-xl font-bold text-sm text-gray-600 dark:text-gray-300 disabled:opacity-50 transition-all active:scale-95 flex items-center justify-center gap-1"
-                >
-                    <ChevronLeft size={18} /> Trước
-                </button>
-                <button
-                    onClick={() => setCurrentIndex(Math.min(activeQuestions.length - 1, currentIndex + 1))}
-                    disabled={currentIndex === activeQuestions.length - 1}
-                    className="flex-1 py-2.5 bg-primary text-white rounded-xl shadow-md shadow-primary/20 font-bold text-sm disabled:opacity-50 transition-all active:scale-95 flex items-center justify-center gap-1"
-                >
-                    Sau <ChevronRight size={18} />
-                </button>
-            </div>
+            <QuestionNav
+                questions={activeQuestions}
+                currentIndex={currentIndex}
+                onNavigate={handleNavigate}
+                getStatus={getExamStatus}
+            />
 
             {/* Exit Confirm */}
             {showExitConfirm && (

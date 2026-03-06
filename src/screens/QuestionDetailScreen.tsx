@@ -1,10 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
-import { ArrowLeft, ChevronLeft, ChevronRight, Plus, Search, Trash2, Edit, FileDown, Upload } from 'lucide-react';
+import { ArrowLeft, Plus, Search, Trash2, Edit, FileDown, Upload } from 'lucide-react';
 import { importQuestionsFromJsonFile } from '../services/ImportService';
 import { QuestionView } from '../components/QuestionView';
+import { QuestionNav } from '../components/QuestionNav';
+import { useSwipeNavigation } from '../hooks/useSwipeNavigation';
 import JSZip from 'jszip';
 
 export const QuestionDetailScreen: React.FC = () => {
@@ -126,6 +128,19 @@ export const QuestionDetailScreen: React.FC = () => {
         }
     };
 
+    const handleNavigate = (idx: number) => setCurrentIndex(idx);
+    const swipeRef = useSwipeNavigation({
+        onSwipeLeft: () => setCurrentIndex(i => Math.min(filteredQuestions.length - 1, i + 1)),
+        onSwipeRight: () => setCurrentIndex(i => Math.max(0, i - 1)),
+        enabled: filteredQuestions.length > 0,
+    });
+
+    const getDetailStatus = useCallback((q: any) => {
+        if (q.status === 1) return 'correct' as const;
+        if (q.status === 2) return 'wrong' as const;
+        return 'unanswered' as const;
+    }, []);
+
     if (!subject) return <div className="p-8 text-center">Đang tải...</div>;
 
     return (
@@ -185,7 +200,7 @@ export const QuestionDetailScreen: React.FC = () => {
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto px-3 py-2">
+            <div ref={swipeRef} className="flex-1 overflow-y-auto px-3 py-2">
                 {filteredQuestions.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-3">
                         <Search size={48} className="opacity-30" />
@@ -233,23 +248,12 @@ export const QuestionDetailScreen: React.FC = () => {
 
             {/* Footer Navigation */}
             {filteredQuestions.length > 0 && (
-                <div className="bg-white dark:bg-zinc-900 border-t border-gray-100 dark:border-zinc-800 px-3 py-2 flex items-center justify-between z-10">
-                    <button
-                        onClick={() => setCurrentIndex(Math.max(0, safeIndex - 1))}
-                        disabled={safeIndex === 0}
-                        className="flex items-center gap-1 px-4 py-2 rounded-xl font-bold text-sm bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 disabled:opacity-50 transition-all"
-                    >
-                        <ChevronLeft size={18} /> Trước
-                    </button>
-                    <span className="text-[10px] font-bold text-gray-400">{safeIndex + 1} / {filteredQuestions.length}</span>
-                    <button
-                        onClick={() => setCurrentIndex(Math.min(filteredQuestions.length - 1, safeIndex + 1))}
-                        disabled={safeIndex === filteredQuestions.length - 1}
-                        className="flex items-center gap-1 px-4 py-2 rounded-xl font-bold text-sm bg-primary text-white shadow-md shadow-primary/30 disabled:opacity-50 transition-all active:scale-95"
-                    >
-                        Sau <ChevronRight size={18} />
-                    </button>
-                </div>
+                <QuestionNav
+                    questions={filteredQuestions}
+                    currentIndex={safeIndex}
+                    onNavigate={handleNavigate}
+                    getStatus={getDetailStatus}
+                />
             )}
         </div>
     );

@@ -156,10 +156,47 @@
           "status": "DONE"
         }
       ]
+    },
+    {
+      "id": "M7",
+      "title": "Question Navigation Menu & Swipe Gesture",
+      "status": "DONE",
+      "tasks": [
+        {
+          "id": "T7.1",
+          "desc": "Create shared QuestionNav component (bottom bar + drawer)",
+          "status": "DONE"
+        },
+        {
+          "id": "T7.2",
+          "desc": "Create useSwipeNavigation hook (touch gestures)",
+          "status": "DONE"
+        },
+        {
+          "id": "T7.3",
+          "desc": "Integrate into PracticeScreen",
+          "status": "DONE"
+        },
+        {
+          "id": "T7.4",
+          "desc": "Integrate into ExamScreen (replace grid overlay)",
+          "status": "DONE"
+        },
+        {
+          "id": "T7.5",
+          "desc": "Integrate into ReviewExamScreen (refactor to fixed layout)",
+          "status": "DONE"
+        },
+        {
+          "id": "T7.6",
+          "desc": "Integrate into QuestionDetailScreen",
+          "status": "DONE"
+        }
+      ]
     }
   ],
-  "current_milestone": "M6",
+  "current_milestone": "M7",
   "meta": {
-    "last_updated": "2026-03-03T14:03:57.182726"
+    "last_updated": "2026-03-06T10:51:35.564161"
   }
 }

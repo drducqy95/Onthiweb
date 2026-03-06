@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import type { Question } from '../db';
-import { ArrowLeft, ChevronLeft, ChevronRight, CheckCircle, XCircle, Eye, EyeOff, RotateCcw, ClipboardCheck, BookOpen, AlertCircle, Star } from 'lucide-react';
+import { ArrowLeft, ChevronRight, CheckCircle, XCircle, Eye, EyeOff, RotateCcw, ClipboardCheck, BookOpen, AlertCircle, Star } from 'lucide-react';
 import { QuestionView } from '../components/QuestionView';
+import { QuestionNav } from '../components/QuestionNav';
+import { useSwipeNavigation } from '../hooks/useSwipeNavigation';
 
 type PracticeMode = 'all' | 'unlearned' | 'wrong';
 
@@ -150,6 +152,21 @@ export const PracticeScreen: React.FC = () => {
             setCheckedQuestions(prev => { const n = { ...prev }; delete n[qId]; return n; });
         }
     };
+
+    const handleNavigate = useCallback((idx: number) => setCurrentIndex(idx), []);
+    const swipeRef = useSwipeNavigation({
+        onSwipeLeft: () => setCurrentIndex(i => Math.min(questions.length - 1, i + 1)),
+        onSwipeRight: () => setCurrentIndex(i => Math.max(0, i - 1)),
+    });
+
+    const getPracticeStatus = useCallback((q: any) => {
+        const qId = q.id!;
+        if (checkedQuestions[qId]) {
+            return getResultStatus(q) ? 'correct' : 'wrong';
+        }
+        if (hasAnswer(q)) return 'answered';
+        return 'unanswered';
+    }, [checkedQuestions, selectedAnswers, selectedSubAnswers]);
 
     if (!subject) return <div className="p-8 text-center">Đang tải...</div>;
 
@@ -316,7 +333,7 @@ export const PracticeScreen: React.FC = () => {
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto px-3 py-2">
+            <div ref={swipeRef} className="flex-1 overflow-y-auto px-3 py-2">
                 <div className="max-w-2xl mx-auto animate-in slide-in-from-right-4 duration-300" key={currentQ.id}>
                     <div className="bg-white dark:bg-zinc-900 p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-zinc-800">
                         <div className="flex justify-between items-start mb-2">
@@ -353,22 +370,12 @@ export const PracticeScreen: React.FC = () => {
             </div>
 
             {/* Footer */}
-            <div className="bg-white dark:bg-zinc-900 border-t border-gray-100 dark:border-zinc-800 px-3 py-2 flex items-center justify-between z-10">
-                <button
-                    onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
-                    disabled={currentIndex === 0}
-                    className="flex items-center gap-1 px-4 py-2 rounded-xl font-bold text-sm bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 disabled:opacity-50 transition-all"
-                >
-                    <ChevronLeft size={18} /> Trước
-                </button>
-                <button
-                    onClick={() => setCurrentIndex(Math.min(questions.length - 1, currentIndex + 1))}
-                    disabled={currentIndex === questions.length - 1}
-                    className="flex items-center gap-1 px-4 py-2 rounded-xl font-bold text-sm bg-primary text-white shadow-md shadow-primary/30 disabled:opacity-50 transition-all active:scale-95"
-                >
-                    Sau <ChevronRight size={18} />
-                </button>
-            </div>
+            <QuestionNav
+                questions={questions}
+                currentIndex={currentIndex}
+                onNavigate={handleNavigate}
+                getStatus={getPracticeStatus}
+            />
         </div>
     );
 };
