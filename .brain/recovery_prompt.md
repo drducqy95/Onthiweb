@@ -3,9 +3,9 @@
 Read this file to restore context from previous session.
 
 ## Current State
-- **Feature:** Property Sync + Filter System + Edit Subject + Background Transparency + Default Seed Data
+- **Feature:** Fix Explanation Line Breaks
 - **Phase:** DONE
-- **Last Active:** 2026-03-06T10:51:35.559520
+- **Last Active:** 2026-03-08T08:16:37.227375
 
 ## Key Context
 - PropertyOption types: 'term' (kỳ thi), 'level' (cấp độ), 'type' (loại môn)

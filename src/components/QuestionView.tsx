@@ -170,7 +170,17 @@ export const QuestionView: React.FC<QuestionViewProps> = ({
                         <AlertCircle size={14} />
                         <h4 className="text-xs">Giải thích:</h4>
                     </div>
-                    {question.explanation && <p className="text-xs leading-relaxed">{question.explanation}</p>}
+                    {question.explanation && (
+                        <div className="text-xs leading-relaxed whitespace-pre-line">
+                            {question.explanation.split(/\n| - (?=[A-ZĐ\d])/).map((paragraph, i) => (
+                                paragraph.trim() ? (
+                                    <p key={i} className={i > 0 ? 'mt-1.5' : ''}>
+                                        {i > 0 && !question.explanation!.includes('\n') ? '- ' : ''}{paragraph.trim()}
+                                    </p>
+                                ) : null
+                            ))}
+                        </div>
+                    )}
                     {question.explanationImage && (
                         <img
                             src={question.explanationImage}

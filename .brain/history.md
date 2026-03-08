@@ -91,3 +91,13 @@
 - Feature: Property Sync + Filter System + Edit Subject + Background Transparency + Default Seed Data
 - Phase: DONE
 
+
+---
+## Session: 2026-03-08 08:16
+
+### 📌 Working On
+- Feature: Fix Explanation Line Breaks
+- Phase: DONE
+
+### ⚠️ Notes
+- Fixed explanation text rendering in QuestionView.tsx by using whitespace-pre-line and regex splitting for paragraph breaks.
