@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../db';
-import { Search, PenTool, Settings, PlayCircle, Clock, BookOpen, ChevronRight, Filter } from 'lucide-react';
+import { Search, PenTool, Settings, PlayCircle, Clock, BookOpen, ChevronRight, Filter, Loader2 } from 'lucide-react';
 import { useExamStore } from '../store';
 import { useSettingsStore } from '../store';
 
@@ -23,6 +23,7 @@ export const ExamSelectionScreen: React.FC = () => {
     // Custom Config State
     const [customCount, setCustomCount] = useState(40);
     const [customTime, setCustomTime] = useState(45);
+    const [isStarting, setIsStarting] = useState(false);
 
     // Data
     const examConfigs = useLiveQuery(() => db.examConfigs.toArray()) || [];
@@ -61,17 +62,29 @@ export const ExamSelectionScreen: React.FC = () => {
 
 
     const handleStartPreset = async (config: any) => {
-        const allQuestions = [];
-        for (const subConfig of config.subjects) {
-            const qs = await db.getQuestionsBySubjectRecursive(subConfig.subjectId);
-            const selected = qs.sort(() => 0.5 - Math.random()).slice(0, subConfig.count);
-            allQuestions.push(...selected);
+        if (isStarting) return;
+        setIsStarting(true);
+        try {
+            const subjectIds = config.subjects.map((s: any) => s.subjectId);
+            const questionMap = await db.getQuestionsByMultipleSubjectsRecursive(subjectIds);
+
+            const allQuestions: any[] = [];
+            for (const subConfig of config.subjects) {
+                const qs = questionMap.get(subConfig.subjectId) || [];
+                const selected = qs.sort(() => 0.5 - Math.random()).slice(0, subConfig.count);
+                allQuestions.push(...selected);
+            }
+
+            if (allQuestions.length === 0) {
+                alert('Không có câu hỏi nào!');
+                return;
+            }
+
+            startSession(config.name, config.subjects, allQuestions);
+            navigate('/exam/run');
+        } finally {
+            setIsStarting(false);
         }
-
-        if (allQuestions.length === 0) return alert('Không có câu hỏi nào!');
-
-        startSession(config.name, config.subjects, allQuestions);
-        navigate('/exam/run');
     };
 
     const handleStartSelfSelect = async (subject: any) => {
@@ -149,9 +162,10 @@ export const ExamSelectionScreen: React.FC = () => {
                                         </div>
                                         <button
                                             onClick={() => handleStartPreset(config)}
-                                            className="p-3 bg-red-500 text-white rounded-xl shadow-lg shadow-red-200 dark:shadow-none active:scale-95 transition-transform"
+                                            disabled={isStarting}
+                                            className="p-3 bg-red-500 text-white rounded-xl shadow-lg shadow-red-200 dark:shadow-none active:scale-95 transition-transform disabled:opacity-50"
                                         >
-                                            <PlayCircle size={24} />
+                                            {isStarting ? <Loader2 size={24} className="animate-spin" /> : <PlayCircle size={24} />}
                                         </button>
                                     </div>
 

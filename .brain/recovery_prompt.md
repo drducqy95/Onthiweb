@@ -3,9 +3,9 @@
 Read this file to restore context from previous session.
 
 ## Current State
-- **Feature:** Fix Explanation Line Breaks
-- **Phase:** DONE
-- **Last Active:** 2026-03-08T08:16:37.227375
+- **Feature:** Exam Performance & Scoring Fix
+- **Phase:** Execution - Bugfix
+- **Last Active:** 2026-03-11T10:13:24.792569
 
 ## Key Context
 - PropertyOption types: 'term' (kỳ thi), 'level' (cấp độ), 'type' (loại môn)

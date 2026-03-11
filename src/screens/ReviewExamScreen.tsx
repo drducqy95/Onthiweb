@@ -202,7 +202,16 @@ export const ReviewExamScreen: React.FC = () => {
                                 <QuestionView
                                     question={activeQuestion}
                                     selectedAnswer={result?.userAnswers?.[activeQuestion.id!] || null}
-                                    selectedSubAnswers={result?.userSubAnswers?.[activeQuestion.id!] || []}
+                                    selectedSubAnswers={(() => {
+                                        // First try userSubAnswers (new format)
+                                        const sub = result?.userSubAnswers?.[activeQuestion.id!];
+                                        if (sub && Array.isArray(sub) && sub.length > 0) return sub;
+                                        // Fallback: parse from userAnswers (TRUE_FALSE_TABLE stores JSON strings there)
+                                        if (activeQuestion.questionType === 'TRUE_FALSE_TABLE') {
+                                            try { return JSON.parse(result?.userAnswers?.[activeQuestion.id!] || '[]'); } catch { return []; }
+                                        }
+                                        return [];
+                                    })()}
                                     showResult={true}
                                     onAnswer={() => { }}
                                     onSubAnswer={() => { }}

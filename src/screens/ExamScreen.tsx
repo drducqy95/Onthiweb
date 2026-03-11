@@ -5,7 +5,7 @@ import { QuestionView } from '../components/QuestionView';
 import { QuestionNav } from '../components/QuestionNav';
 import type { QuestionStatus } from '../components/QuestionNav';
 import { useSwipeNavigation } from '../hooks/useSwipeNavigation';
-import { ChevronLeft, Timer, AlertTriangle, CheckCircle } from 'lucide-react';
+import { ChevronLeft, Timer, AlertTriangle, CheckCircle, Award, Eye } from 'lucide-react';
 import { useExamStore, useSettingsStore } from '../store';
 import { clsx } from 'clsx';
 
@@ -21,6 +21,7 @@ export const ExamScreen: React.FC = () => {
         decrementTime,
         finishSession,
         completeSubject,
+        nextSubject,
         clearSession
     } = useExamStore();
 
@@ -29,6 +30,9 @@ export const ExamScreen: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [showNextSubjectModal, setShowNextSubjectModal] = useState(false);
     const [lastSubjectResult, setLastSubjectResult] = useState<any>(null);
+    const [showFinalResult, setShowFinalResult] = useState(false);
+    const [finalResultData, setFinalResultData] = useState<any>(null);
+    const [savedResultId, setSavedResultId] = useState<number | null>(null);
 
     // Initialization Logic for Legacy/Direct Link
     useEffect(() => {
@@ -56,7 +60,7 @@ export const ExamScreen: React.FC = () => {
                     finalQs
                 );
                 setIsLoading(false);
-            } else if (!currentSession && !subjectId) {
+            } else if (!currentSession && !subjectId && !showFinalResult) {
                 navigate('/exam');
             }
         };
@@ -99,11 +103,22 @@ export const ExamScreen: React.FC = () => {
     const activeQuestions = getActiveQuestions();
     const currentQuestion = activeQuestions[currentIndex];
 
+    const { userAnswers = {}, timeLeft = 0 } = currentSession || {};
+
+    // ALL HOOKS MUST BE ABOVE ANY EARLY RETURN
+    const handleNavigate = useCallback((idx: number) => setCurrentIndex(idx), []);
+    const swipeRef = useSwipeNavigation({
+        onSwipeLeft: () => setCurrentIndex(i => Math.min(activeQuestions.length - 1, i + 1)),
+        onSwipeRight: () => setCurrentIndex(i => Math.max(0, i - 1)),
+    });
+
+    const getExamStatus = useCallback((q: any): QuestionStatus => {
+        return userAnswers[q.id!] ? 'answered' : 'unanswered';
+    }, [userAnswers]);
+
     if (isLoading || !currentSession || !activeConfig || !currentQuestion) {
         return <div className="p-8 text-center">Đang tải câu hỏi...</div>;
     }
-
-    const { userAnswers, timeLeft } = currentSession;
 
     // Handle Answer — multi-select toggle for MULTIPLE_CHOICE
     const handleAnswer = (letter: string) => {
@@ -176,9 +191,8 @@ export const ExamScreen: React.FC = () => {
             passed
         };
 
-        completeSubject(result);
-
         if (activeSubjectIndex < currentSession.configs.length - 1) {
+            completeSubject(result);
             setLastSubjectResult(result);
             setShowNextSubjectModal(true);
             setCurrentIndex(0);
@@ -188,34 +202,73 @@ export const ExamScreen: React.FC = () => {
     };
 
     const finishAll = async (allResults: any[]) => {
+        // Capture session data BEFORE any state mutations
+        const sessionQuestions = currentSession.questions;
+        const sessionConfigs = currentSession.configs;
+        const sessionName = currentSession.name;
+        const sessionId = currentSession.sessionId;
+        const currentUserAnswers = { ...userAnswers };
+
         finishSession();
 
         const globalPassed = allResults.every(r => r.passed);
         const totalScore = allResults.reduce((acc, r) => acc + r.score, 0);
         const avgScore = totalScore / allResults.length;
 
+        // Extract actual sub-answers from userAnswers (TRUE_FALSE_TABLE stores JSON strings)
+        const extractedSubAnswers: Record<number, (boolean | null)[]> = {};
+        for (const q of sessionQuestions) {
+            if (q.questionType === 'TRUE_FALSE_TABLE' && currentUserAnswers[q.id!]) {
+                try {
+                    extractedSubAnswers[q.id!] = JSON.parse(currentUserAnswers[q.id!]);
+                } catch { /* ignore parse errors */ }
+            }
+        }
+
         const resultId = await db.examResults.add({
-            subjectId: currentSession.configs[0].subjectId,
-            subjectName: currentSession.name,
+            subjectId: sessionConfigs[0].subjectId,
+            subjectName: sessionName,
             score: avgScore,
             correctCount: allResults.reduce((acc, r) => acc + r.correctCount, 0),
             totalQuestions: allResults.reduce((acc, r) => acc + r.totalQuestions, 0),
             timestamp: Date.now(),
-            sessionId: currentSession.sessionId,
-            examName: currentSession.name,
-            questionIds: currentSession.questions.map(q => q.id!),
-            userAnswers: userAnswers,
-            userSubAnswers: {},
-            isMultiSubject: true,
+            sessionId: sessionId,
+            examName: sessionName,
+            questionIds: sessionQuestions.map(q => q.id!),
+            userAnswers: currentUserAnswers,
+            userSubAnswers: extractedSubAnswers,
+            isMultiSubject: sessionConfigs.length > 1,
             subjectResults: allResults,
             passed: globalPassed
         });
 
+        // Show final result modal instead of immediately navigating
+        setFinalResultData({
+            examName: sessionName,
+            score: avgScore,
+            correctCount: allResults.reduce((acc, r) => acc + r.correctCount, 0),
+            totalQuestions: allResults.reduce((acc, r) => acc + r.totalQuestions, 0),
+            passed: globalPassed,
+            subjectResults: allResults,
+            isMultiSubject: sessionConfigs.length > 1
+        });
+        setSavedResultId(resultId as number);
+        setShowFinalResult(true);
+    };
+
+    const handleGoToReview = () => {
+        // Navigate FIRST, then clear session to avoid race condition
+        navigate(`/review/${savedResultId}`, { replace: true });
+        setTimeout(() => clearSession(), 100);
+    };
+
+    const handleBackToExams = () => {
         clearSession();
-        navigate(`/review/${resultId}`, { replace: true });
+        navigate('/exam', { replace: true });
     };
 
     const startNextSubject = () => {
+        nextSubject(); // Reset timer for next subject
         setShowNextSubjectModal(false);
     };
 
@@ -225,17 +278,94 @@ export const ExamScreen: React.FC = () => {
         return `${m}:${s.toString().padStart(2, '0')}`;
     };
 
-    const handleNavigate = useCallback((idx: number) => setCurrentIndex(idx), []);
-    const swipeRef = useSwipeNavigation({
-        onSwipeLeft: () => setCurrentIndex(i => Math.min(activeQuestions.length - 1, i + 1)),
-        onSwipeRight: () => setCurrentIndex(i => Math.max(0, i - 1)),
-    });
+    // Final Result Modal
+    if (showFinalResult && finalResultData) {
+        const pct = finalResultData.totalQuestions > 0 ? (finalResultData.correctCount / finalResultData.totalQuestions) * 100 : 0;
+        return (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+                <div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-[2rem] p-8 shadow-2xl text-center">
+                    <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ${
+                        finalResultData.passed ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+                    }`}>
+                        <Award size={40} />
+                    </div>
 
-    const getExamStatus = useCallback((q: any): QuestionStatus => {
-        return userAnswers[q.id!] ? 'answered' : 'unanswered';
-    }, [userAnswers]);
+                    <h3 className="text-2xl font-bold mb-1">{finalResultData.passed ? 'Chúc mừng!' : 'Chưa đạt'}</h3>
+                    <p className="text-sm text-gray-500 mb-4 font-medium">{finalResultData.examName}</p>
 
-    // Modal for Next Subject
+                    {/* Score Circle */}
+                    <div className={`text-5xl font-black mb-1 ${
+                        finalResultData.passed ? 'text-green-600' : 'text-red-500'
+                    }`}>
+                        {finalResultData.score.toFixed(1)}
+                    </div>
+                    <p className="text-xs text-gray-400 uppercase font-bold tracking-widest mb-6">Điểm số</p>
+
+                    {/* Stats */}
+                    <div className="bg-gray-50 dark:bg-zinc-800 rounded-2xl p-4 mb-4">
+                        <div className="grid grid-cols-3 gap-3">
+                            <div>
+                                <p className="text-[10px] text-gray-400 uppercase font-bold">Đúng</p>
+                                <p className="text-xl font-black text-green-600">{finalResultData.correctCount}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] text-gray-400 uppercase font-bold">Sai</p>
+                                <p className="text-xl font-black text-red-500">{finalResultData.totalQuestions - finalResultData.correctCount}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] text-gray-400 uppercase font-bold">Tỷ lệ</p>
+                                <p className="text-xl font-black text-gray-900 dark:text-white">{pct.toFixed(0)}%</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Multi-Subject Details */}
+                    {finalResultData.isMultiSubject && finalResultData.subjectResults && (
+                        <div className="bg-gray-50 dark:bg-zinc-800 rounded-2xl p-3 mb-4 text-left space-y-2">
+                            {finalResultData.subjectResults.map((sub: any, idx: number) => (
+                                <div key={idx} className="flex justify-between items-center p-2 bg-white dark:bg-zinc-900 rounded-xl">
+                                    <div className="flex-1 min-w-0 mr-2">
+                                        <p className="font-bold text-xs truncate">{sub.subjectName}</p>
+                                        <p className="text-[10px] text-gray-400">{sub.correctCount}/{sub.totalQuestions} câu đúng</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-black text-sm">{sub.score.toFixed(1)}</span>
+                                        <span className={`text-[8px] font-bold uppercase px-1.5 py-0.5 rounded-full ${
+                                            sub.passed ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                        }`}>
+                                            {sub.passed ? 'ĐẠT' : 'RỚT'}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    <div className={`inline-block px-4 py-1.5 rounded-full text-sm font-bold mb-6 ${
+                        finalResultData.passed ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                    }`}>
+                        {finalResultData.passed ? '✅ ĐẠT' : '❌ KHÔNG ĐẠT'}
+                    </div>
+
+                    <div className="space-y-3">
+                        <button
+                            onClick={handleGoToReview}
+                            className="w-full py-4 bg-primary text-white rounded-2xl font-bold text-lg shadow-lg shadow-primary/30 active:scale-95 transition-all flex items-center justify-center gap-2"
+                        >
+                            <Eye size={20} /> Xem chi tiết bài làm
+                        </button>
+                        <button
+                            onClick={handleBackToExams}
+                            className="w-full py-3 bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300 rounded-2xl font-bold text-sm active:scale-95 transition-all"
+                        >
+                            Quay về danh sách
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     if (showNextSubjectModal) {
         return (
             <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">

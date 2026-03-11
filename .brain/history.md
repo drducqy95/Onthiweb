@@ -101,3 +101,13 @@
 
 ### ⚠️ Notes
 - Fixed explanation text rendering in QuestionView.tsx by using whitespace-pre-line and regex splitting for paragraph breaks.
+
+---
+## Session: 2026-03-11 10:13
+
+### 📌 Working On
+- Feature: Exam Performance & Scoring Fix
+- Phase: Execution - Bugfix
+
+### ⚠️ Notes
+- Optimized batch DB queries, fixed hook order crashes, and added results summary modal.

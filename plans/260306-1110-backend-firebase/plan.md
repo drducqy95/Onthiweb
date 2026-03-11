@@ -46,6 +46,9 @@ Chuyển đổi app Ôn Thi Trắc Nghiệm từ offline-only (Dexie/IndexedDB) 
 | 6A | 06 | E2E + multi-user + edge cases + security + perf |
 | 6B | 06 | Vercel deploy + Firebase config + monitoring |
 
+## ⚠️ Git Policy
+> **KHÔNG push lên git sau mỗi phase riêng lẻ.** Chỉ commit & push **sau khi hoàn thành toàn bộ 6 phases** và đã verify trên production.
+
 ## Quick Commands
 - Start Phase 1: `/code phase-01`
 - Check progress: `/next`

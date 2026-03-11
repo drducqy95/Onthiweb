@@ -193,10 +193,27 @@
           "status": "DONE"
         }
       ]
+    },
+    {
+      "id": "M8",
+      "title": "Repository migration to drducqy95/Onthiweb",
+      "status": "DONE",
+      "tasks": [
+        {
+          "id": "T8.1",
+          "desc": "Update origin remote URL to https://github.com/drducqy95/Onthiweb",
+          "status": "DONE"
+        },
+        {
+          "id": "T8.2",
+          "desc": "Push all branches and tags to new repository",
+          "status": "DONE"
+        }
+      ]
     }
   ],
-  "current_milestone": "M7",
+  "current_milestone": "M8",
   "meta": {
-    "last_updated": "2026-03-08T08:16:37.239221"
+    "last_updated": "2026-03-11T10:13:24.793881"
   }
 }

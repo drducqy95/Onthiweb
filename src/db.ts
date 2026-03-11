@@ -176,6 +176,46 @@ export class AppDatabase extends Dexie {
         // Use Promise.all for parallel fetching or collection 'anyOf' if available
         return await this.questions.where('subjectId').anyOf(targetIds).toArray();
     }
+
+    /**
+     * Batch load questions for multiple root subjects in ONE pass.
+     * Loads subjects table once, resolves all recursive children, then queries questions once.
+     * Returns Map<rootSubjectId, Question[]>
+     */
+    async getQuestionsByMultipleSubjectsRecursive(subjectIds: number[]): Promise<Map<number, Question[]>> {
+        const allSubjects = await this.subjects.toArray();
+
+        const findChildren = (pid: number): number[] => {
+            const children = allSubjects.filter(s => s.parentId === pid).map(s => s.id!);
+            return [pid, ...children.flatMap(findChildren)];
+        };
+
+        // Build a map: childId -> rootId, and collect all target IDs
+        const childToRoot = new Map<number, number>();
+        for (const rootId of subjectIds) {
+            const descendants = Array.from(new Set(findChildren(rootId)));
+            for (const did of descendants) {
+                childToRoot.set(did, rootId);
+            }
+        }
+
+        const allTargetIds = Array.from(childToRoot.keys());
+        const allQuestions = await this.questions.where('subjectId').anyOf(allTargetIds).toArray();
+
+        // Group questions by root subject
+        const result = new Map<number, Question[]>();
+        for (const rootId of subjectIds) {
+            result.set(rootId, []);
+        }
+        for (const q of allQuestions) {
+            const rootId = childToRoot.get(q.subjectId);
+            if (rootId !== undefined && result.has(rootId)) {
+                result.get(rootId)!.push(q);
+            }
+        }
+
+        return result;
+    }
 }
 
 export const db = new AppDatabase();
